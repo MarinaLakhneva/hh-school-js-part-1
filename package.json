@@ -2,6 +2,7 @@
   "name": "js-part-1",
   "version": "1.0.0",
   "main": "index.js",
+  "type": "module",
   "repository": "git@github.com:ipetropolsky/js-part-1.git",
   "author": "'Ivan Petropolsky' <i.petropolsky@hh.ru>",
   "license": "MIT",

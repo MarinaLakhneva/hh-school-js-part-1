@@ -1,3 +1,5 @@
+// eslint-disable-next-line no-restricted-imports
+import { Graph } from './graph.js';
 // Загрузка данных через await
 async function getDataAsync(url) {
     // https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch
@@ -84,7 +86,7 @@ async function loadCountriesData() {
     try {
         // ПРОВЕРКА ОШИБКИ №1: ломаем этот урл, заменяя all на allolo,
         // получаем кастомную ошибку.
-        countries = await getData('https://restcountries.com/v3.1/all?fields=name&fields=cca3&fields=area');
+        countries = await getData('https://restcountries.com/v3.1/all?fields=name&fields=cca3&fields=borders');
     } catch (error) {
         // console.log('catch for getData');
         // console.error(error);
@@ -92,8 +94,38 @@ async function loadCountriesData() {
     }
     return countries.reduce((result, country) => {
         result[country.cca3] = country;
+        if (country.borders == null) {
+            country.borders = [];
+        }
+
         return result;
     }, {});
+}
+
+function findPath(countriesGraph, fromCountry, toCountry) {
+    const graph = new Graph(countriesGraph);
+    return graph.findShortestPath(fromCountry, toCountry);
+}
+
+function createCountriesGraph(countriesData) {
+    const map = {};
+    Object.entries(countriesData).forEach((keyVal) => {
+        const borders = {};
+        keyVal[1].borders.forEach((border) => {
+            borders[border] = 1;
+        });
+        map[keyVal[0]] = borders;
+    });
+    return map;
+}
+
+function mapCountryNamesToCountryCode(countriesData) {
+    const nameToCode = {};
+    Object.entries(countriesData).forEach((keyVal) => {
+        nameToCode[keyVal[1].name.common] = keyVal[0];
+    });
+
+    return nameToCode;
 }
 
 const form = document.getElementById('form');
@@ -110,17 +142,22 @@ const output = document.getElementById('output');
 
     output.textContent = 'Loading…';
     let countriesData = {};
+    let countriesGraph = {};
+    let nameToCode = {};
+
     try {
         // ПРОВЕРКА ОШИБКИ №2: Ставим тут брейкпоинт и, когда дойдёт
         // до него, переходим в оффлайн-режим. Получаем эксцепшн из `fetch`.
         countriesData = await loadCountriesData();
+        nameToCode = mapCountryNamesToCountryCode(countriesData);
+        countriesGraph = createCountriesGraph(countriesData);
     } catch (error) {
         // console.log('catch for loadCountriesData');
         // console.error(error);
-        output.textContent = 'Something went wrong. Try to reset your compluter.';
+        output.innerHTML = 'Something went wrong. Try to reset your compluter.';
         return;
     }
-    output.textContent = '';
+    output.innerHTML = '';
 
     // Заполняем список стран для подсказки в инпутах
     Object.keys(countriesData)
@@ -128,6 +165,7 @@ const output = document.getElementById('output');
         .forEach((code) => {
             const option = document.createElement('option');
             option.value = countriesData[code].name.common;
+            option.label = code;
             countriesList.appendChild(option);
         });
 
@@ -137,6 +175,20 @@ const output = document.getElementById('output');
 
     form.addEventListener('submit', (event) => {
         event.preventDefault();
+
+        output.innerHTML = 'Идет рассчет...';
+        const path = findPath(countriesGraph, nameToCode[fromCountry.value], nameToCode[toCountry.value]);
+        if (path == null) {
+            output.innerHTML = 'Путь не найден';
+            return;
+        }
+
+        const pathAsString = path
+            .map((countryCode) => {
+                return countriesData[countryCode].name.common;
+            })
+            .join(' -> ');
+        output.innerHTML = `${pathAsString}<br>Все данные можно получить за 1 запрос 🤭`;
         // TODO: Вывести, откуда и куда едем, и что идёт расчёт.
         // TODO: Рассчитать маршрут из одной страны в другую за минимум запросов.
         // TODO: Вывести маршрут и общее количество запросов.
